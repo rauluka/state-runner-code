@@ -1,0 +1,124 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "sqlServerBaseName": {
+            "type": "string",
+            "metadata": {
+                "description": "The name that will be used to name server in given region."
+            }
+        },
+        "sqlServerAdminUsername": {
+            "type": "string",
+            "metadata": {
+                "description": "The administrator username."
+            }
+        },
+        "sqlServerAdminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "The administrator password."
+            }
+        },
+        "sqlServerPrimaryRegion": {
+            "type": "string",
+            "metadata": {
+                "description": "The location of the primary SQL Server."
+            }
+        },
+        "sqlServerSecondaryRegion": {
+            "type": "string",
+            "metadata": {
+                "description": "The location of the secondary SQL Server."
+            }
+        },
+        "sqlFailoverGroupName": {
+            "type": "string",
+            "metadata": {
+                "description": "The name of the failover group."
+            }
+        }
+    },
+    "variables": {
+        "regionNamesAbbreviations": {
+            "westeurope": "we",
+            "northeurope": "ne",
+            "westus": "wus",
+            "eastus": "eus"
+        },
+        "sqlServerPrimaryName": "[concat(parameters('sqlServerBaseName'),'-',variables('regionNamesAbbreviations')[parameters('sqlServerPrimaryRegion')])]",
+        "sqlServerSecondaryName": "[concat(parameters('sqlServerBaseName'),'-',variables('regionNamesAbbreviations')[parameters('sqlServerSecondaryRegion')])]",
+        "sqlDatabaseName": "MyData",
+        "sqlDatabaseServiceObjective": "Basic",
+        "sqlDatabaseEdition": "Basic"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Sql/servers",
+            "kind": "v12.0",
+            "name": "[variables('sqlServerPrimaryName')]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[parameters('sqlServerPrimaryRegion')]",
+            "properties": {
+                "administratorLogin": "[parameters('sqlServerAdminUsername')]",
+                "administratorLoginPassword": "[parameters('sqlServerAdminPassword')]",
+                "version": "12.0"
+            },
+            "resources": [
+                {
+                    "apiVersion": "2015-05-01-preview",
+                    "type": "failoverGroups",
+                    "name": "[parameters('sqlFailoverGroupName')]",
+                    "dependsOn": [
+                        "[variables('sqlServerPrimaryName')]",
+                        "[resourceId('Microsoft.Sql/servers/databases', variables('sqlServerPrimaryName'), variables('sqlDatabaseName'))]",
+                        "[resourceId('Microsoft.Sql/servers', variables('sqlServerSecondaryName'))]"
+                    ],
+                    "properties": {
+                        "serverName": "[variables('sqlServerPrimaryName')]",
+                        "partnerServers": [
+                            {
+                                "id": "[resourceId('Microsoft.Sql/servers/', variables('sqlServerSecondaryName'))]"
+                            }
+                        ],
+                        "readWriteEndpoint": {
+                            "failoverPolicy": "Automatic",
+                            "failoverWithDataLossGracePeriodMinutes": 60
+                        },
+                        "readOnlyEndpoint": {
+                            "failoverPolicy": "Disabled"
+                        },
+                        "databases": [
+                            "[resourceId('Microsoft.Sql/servers/databases', variables('sqlServerPrimaryName'), variables('sqlDatabaseName'))]"
+                        ]
+                    }
+                },
+                {
+                    "name": "[variables('sqlDatabaseName')]",
+                    "type": "databases",
+                    "apiVersion": "2014-04-01-preview",
+                    "location": "[parameters('sqlServerPrimaryRegion')]",
+                    "dependsOn": [
+                        "[variables('sqlServerPrimaryName')]"
+                    ],
+                    "properties": {
+                        "edition": "[variables('sqlDatabaseEdition')]",
+                        "requestedServiceObjectiveName": "[variables('sqlDatabaseServiceObjective')]"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "Microsoft.Sql/servers",
+            "kind": "v12.0",
+            "name": "[variables('sqlServerSecondaryName')]",
+            "apiVersion": "2014-04-01-preview",
+            "location": "[parameters('sqlServerSecondaryRegion')]",
+            "properties": {
+                "administratorLogin": "[parameters('sqlServerAdminUsername')]",
+                "administratorLoginPassword": "[parameters('sqlServerAdminPassword')]",
+                "version": "12.0"
+            }
+        }
+    ]
+}
