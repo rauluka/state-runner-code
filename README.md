@@ -1,5 +1,5 @@
 # state-runner-code
-Simple Azure SQL &amp; Cosmos DB app used as demo during "Do Developers Dream of Staless Apps presentation"
+Simple Azure SQL &amp; Cosmos DB app used as demo during "Do Developers Dream of Stateless Apps" presentation.
 
 ## Prerequisites
 1. You need to have access to Azure account and subscription.
